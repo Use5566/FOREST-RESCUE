@@ -6,7 +6,7 @@ const ground=document.createElement('canvas');ground.width=W;ground.height=H;con
 const $=s=>document.querySelector(s);
 // Timers count active seconds; physical simulation uses 90% speed.
 const PACE=.9, RESCUE_WINDOW=4, FIRE_RATE=.8;
-const specs={clear:{name:'移除樹木',cool:5,maxLength:130,radius:8,unlock:0,hint:'只能移除完整綠色森林；燃燒或焦化區域無法施作。放開後沿路線逐段施工，每次最多 130 公尺，冷卻 5 秒。'},drone:{name:'無人機灑水',cool:2,radius:29,unlock:2,speed:150,hint:'點選目標，無人機由場外飛入，抵達後灑水。冷卻 2 秒。'},heli:{name:'直升機灑水',cool:15,radius:58,unlock:25,speed:115,hint:'點選目標，直升機由場外飛入，抵達後灑水。冷卻 15 秒。'}};
+const specs={clear:{name:'移除樹木',cool:5,maxLength:130,radius:8,unlock:0,hint:'只能移除完整綠色森林；燃燒或焦化區域無法施作。放開後沿路線逐段施工，每次最多 130 公尺，冷卻 5 秒。'},drone:{name:'無人機灑水',cool:2.5,radius:29,unlock:2,speed:150,hint:'點選目標，無人機由場外飛入，抵達後灑水。冷卻 2.5 秒。'},heli:{name:'直升機灑水',cool:15,radius:58,unlock:25,speed:115,hint:'點選目標，直升機由場外飛入，抵達後灑水。冷卻 15 秒。'}};
 let cells,selected='clear',cooldowns={},effects=[],flights=[],clearJobs=[],weather,path=[],pointer=null,drag=false,activePointer=null,mode='ready',elapsed=0,simTime=0,last=0,acc=0,toastUntil=0,seed=47,initialFuel=0,restoreAfterHelp=false;
 const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
 const lockedFor=k=>Math.max(0,specs[k].unlock-elapsed);
@@ -63,10 +63,13 @@ function water(points,r,strength=2){inArea(points,r,c=>{if(c.fire>0){c.fire=Math
 function updateWeather(dt){weather.nextChange-=dt;if(weather.nextChange<=0){weather.targetDirection=weather.direction+(Math.random()<.5?-1:1)*(35+Math.random()*65);let next=4+Math.random()*14;if(Math.abs(next-weather.speed)<2)next=weather.speed>11?5:17;weather.targetSpeed=next;weather.nextChange=10+Math.random()*8;weather.changes++;}const blend=1-Math.exp(-dt/2.5);weather.direction+=(weather.targetDirection-weather.direction)*blend;weather.speed+=(weather.targetSpeed-weather.speed)*blend;}
 function dispatch(type,target){const entries=[{x:-55,y:target.y},{x:W+55,y:target.y},{x:target.x,y:-55},{x:target.x,y:H+55}],entry=entries.reduce((a,b)=>Math.hypot(a.x-target.x,a.y-target.y)<Math.hypot(b.x-target.x,b.y-target.y)?a:b),distance=Math.hypot(target.x-entry.x,target.y-entry.y);flights.push({type,x:entry.x,y:entry.y,target:{...target},dx:(target.x-entry.x)/distance,dy:(target.y-entry.y)/distance,phase:'inbound',drop:0});}
 function updateFlights(dt){flights=flights.filter(f=>{const speed=specs[f.type].speed;if(f.phase==='inbound'){const distance=Math.hypot(f.target.x-f.x,f.target.y-f.y);if(distance<=speed*dt){f.x=f.target.x;f.y=f.target.y;f.phase='dropping';f.drop=1.4;water([f.target],specs[f.type].radius);effects.push({type:'water',x:f.x,y:f.y,r:specs[f.type].radius,life:2});tell(`${specs[f.type].name}已抵達目標，正在灑水。`);}else{f.x+=f.dx*speed*dt;f.y+=f.dy*speed*dt;}}else if(f.phase==='dropping'){water([f.target],specs[f.type].radius,1.5*dt);f.drop-=dt;if(f.drop<=0)f.phase='outbound';}else{f.x+=f.dx*speed*dt;f.y+=f.dy*speed*dt;}return f.x>=-70&&f.x<=W+70&&f.y>=-70&&f.y<=H+70;});}
+// Spread declines over active time to a positive floor after 120 seconds.
+function spreadMultiplier(seconds){return Math.max(.55,1.4-.85*Math.max(0,seconds)/120);}
 function updateFire(dt,activeDt){
+const spread=spreadMultiplier(elapsed);
 const angle=weather.direction*Math.PI/180,wx=-Math.sin(angle),wy=Math.cos(angle),speed=weather.speed,ignite=[];
 for(let i=0;i<N;i++){const c=cells[i];c.wet=Math.max(0,c.wet-dt);c.rescued=Math.max(0,c.rescued-dt);if(c.fire<=0)continue;const before=c.burningFor;c.burningFor+=activeDt;const damageDt=Math.max(0,c.burningFor-RESCUE_WINDOW)-Math.max(0,before-RESCUE_WINDOW);c.fuel=Math.max(0,c.fuel-damageDt*PACE*FIRE_RATE*.014);c.burn=Math.min(1,c.burn+damageDt*PACE*FIRE_RATE*.023);if(!c.fuel){c.fire=0;c.burningFor=0;continue;}c.fire=Math.min(1,c.fire+dt*FIRE_RATE*.13);const gx=i%COLS,gy=Math.floor(i/COLS);
-for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]]){if(gx+dx<0||gx+dx>=COLS||gy+dy<0||gy+dy>=ROWS)continue;const j=i+dx+dy*COLS,t=cells[j];if(t.fuel<=0||t.fire||t.burn>0||t.wet>0||t.clear)continue;const wind=1+(dx*wx+dy*wy)/Math.hypot(dx,dy)*speed/25;if(random()<dt*FIRE_RATE*.14*wind)ignite.push(j);}}
+for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[-1,1],[1,-1],[-1,-1]]){if(gx+dx<0||gx+dx>=COLS||gy+dy<0||gy+dy>=ROWS)continue;const j=i+dx+dy*COLS,t=cells[j];if(t.fuel<=0||t.fire||t.burn>0||t.wet>0||t.clear)continue;const wind=1+(dx*wx+dy*wy)/Math.hypot(dx,dy)*speed/25;if(random()<dt*FIRE_RATE*.14*spread*wind)ignite.push(j);}}
 for(const i of ignite)if(!cells[i].fire&&cells[i].burn===0){cells[i].fire=.65;cells[i].burningFor=0;}}
 function updateClearJobs(dt){
   clearJobs=clearJobs.filter(job=>{
