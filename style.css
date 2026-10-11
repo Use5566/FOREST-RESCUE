@@ -60,3 +60,5 @@
 /* Three-tool layout; no unused fourth slot. */
 @media(min-width:561px) and (max-width:900px){.tools{grid-template-columns:repeat(3,minmax(0,1fr))}.tool{flex-direction:column;align-items:flex-start}.tool-copy{width:100%}}
 @media(max-width:560px){.tools{grid-template-columns:1fr}.tool{flex-direction:row}.tool-icon{flex-basis:46px;width:46px}.tool small{min-height:0;margin:4px 0 7px}.tool strong{font-size:14px}.tool-copy{flex:1}.tool{padding:10px 13px}}
+
+.version-badge{position:fixed;right:12px;bottom:8px;z-index:5;color:#b4c9c4;background:#102b2ee6;padding:3px 7px;border-radius:4px;font:11px/1.4 system-ui,sans-serif;pointer-events:none}

@@ -64,7 +64,7 @@ function updateWeather(dt){weather.nextChange-=dt;if(weather.nextChange<=0){weat
 function dispatch(type,target){const entries=[{x:-55,y:target.y},{x:W+55,y:target.y},{x:target.x,y:-55},{x:target.x,y:H+55}],entry=entries.reduce((a,b)=>Math.hypot(a.x-target.x,a.y-target.y)<Math.hypot(b.x-target.x,b.y-target.y)?a:b),distance=Math.hypot(target.x-entry.x,target.y-entry.y);flights.push({type,x:entry.x,y:entry.y,target:{...target},dx:(target.x-entry.x)/distance,dy:(target.y-entry.y)/distance,phase:'inbound',drop:0});}
 function updateFlights(dt){flights=flights.filter(f=>{const speed=specs[f.type].speed;if(f.phase==='inbound'){const distance=Math.hypot(f.target.x-f.x,f.target.y-f.y);if(distance<=speed*dt){f.x=f.target.x;f.y=f.target.y;f.phase='dropping';f.drop=1.4;water([f.target],specs[f.type].radius);effects.push({type:'water',x:f.x,y:f.y,r:specs[f.type].radius,life:2});tell(`${specs[f.type].name}已抵達目標，正在灑水。`);}else{f.x+=f.dx*speed*dt;f.y+=f.dy*speed*dt;}}else if(f.phase==='dropping'){water([f.target],specs[f.type].radius,1.5*dt);f.drop-=dt;if(f.drop<=0)f.phase='outbound';}else{f.x+=f.dx*speed*dt;f.y+=f.dy*speed*dt;}return f.x>=-70&&f.x<=W+70&&f.y>=-70&&f.y<=H+70;});}
 // Spread declines over active time to a positive floor after 120 seconds.
-function spreadMultiplier(seconds){return Math.max(.55,1.4-.85*Math.max(0,seconds)/120);}
+function spreadMultiplier(seconds){return Math.max(.8,1.3-.5*Math.max(0,seconds)/120);}
 function updateFire(dt,activeDt){
 const spread=spreadMultiplier(elapsed);
 const angle=weather.direction*Math.PI/180,wx=-Math.sin(angle),wy=Math.cos(angle),speed=weather.speed,ignite=[];
